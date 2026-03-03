@@ -22,59 +22,8 @@ A single state has limited power, and the `StateStack` class is where they are o
 
 Transitions between states are event-driven, safe, and flexible. Inside any state, you can call `RequestChange(newState)` to clear the stack and switch to a completely new state (e.g., from the main menu to the game), or call `RequestPush(menuState)` to overlay a new state on the current one (e.g., opening an inventory), or call `RequestPop()` to close the current state (e.g., closing the menu to return to the game). All transition requests are queued and processed at safe times, avoiding errors that could arise from directly modifying the stack structure within the update loop.
 
-## Quick Start: From Splash Screen to Main Game Loop
-Let's see how it works with a practical example. Assume your game `Game1` inherits from `MonoGameLibrary.Core`. First, you need to declare and initialize the state stack and input state.
-
-```csharp
-private StateStack _stateStack;
-private InputState _inputState;
-
-protected override void Initialize()
-{
-    _stateStack = new StateStack();
-    _inputState = new InputState();
-    base.Initialize();
-}
-```
-
-Next, create a splash screen state `SplashState`. This state displays a logo and automatically switches to the main game state when a timer ends or the player presses a key. In its `Update` method, you can see how state transitions are triggered:
-
-```csharp
-if (_displayTime <= 0)
-{
-    // Use a factory delegate to create the next state, enabling dependency injection
-    RequestChange(() => new GameplayState(_regionSlime, _regionBat));
-}
-```
-
-In `LoadContent`, you push the initial state onto the stack:
-
-```csharp
-var splashState = new SplashState(logoTexture, position, scale, nextStateFactory);
-_stateStack.Push(splashState);
-```
-
-Finally, drive the entire system in the main game loop:
-
-```csharp
-protected override void Update(GameTime gameTime)
-{
-    _inputState.Update(); // Update the input state
-    _stateStack.SafeUpdate(gameTime, _inputState); // Safely update the state stack
-    base.Update(gameTime);
-}
-
-protected override void Draw(GameTime gameTime)
-{
-    GraphicsDevice.Clear(Color.CornflowerBlue);
-    SpriteBatch.Begin();
-    _stateStack.SafeDraw(gameTime, SpriteBatch); // Safely draw the state stack
-    SpriteBatch.End();
-    base.Draw(gameTime);
-}
-```
-
-Note that the `SafeUpdate` and `SafeDraw` methods used here are extension methods provided by the StateStackExtensions module. They internally handle null reference checks, making the code in the main game program more robust and concise.
+## Example: From Splash Screen to Main Game Loop
+Let's see how it works with a practical example. Assume your game `Game1` inherits from `MonoGameLibrary.Core`. 
 
 ## More Than Management, It's Empowerment
 Beyond core state management, this module includes a practical `InputState` class. It encapsulates MonoGame's input while also recording the state of the current and previous frames. This makes implementing edge-detection logic like "key was just pressed" (`WasKeyJustPressed`) extremely easy, as seen in `SplashState.HandleInput`.
