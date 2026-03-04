@@ -5,7 +5,8 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace MonoGameLibrary;
 
-public class Core : Game {
+public class Core : Game
+{
     internal static Core s_instance;
 
     /// <summary>
@@ -40,9 +41,11 @@ public class Core : Game {
     /// <param name="width">The initial width, in pixels, of the game window.</param>
     /// <param name="height">The initial height, in pixels, of the game window.</param>
     /// <param name="fullScreen">Indicates if the game should start in fullscreen mode.</param>
-    public Core(string title, int width, int height, bool fullScreen) {
+    public Core(string title, int width, int height, bool fullScreen)
+    {
         // Ensure that multiple cores are not created.
-        if (s_instance != null) {
+        if (s_instance != null)
+        {
             throw new InvalidOperationException($"Only a single Core instance can be created");
         }
 
@@ -74,7 +77,8 @@ public class Core : Game {
         IsMouseVisible = true;
     }
 
-    protected override void Initialize() {
+    protected override void Initialize()
+    {
         base.Initialize();
 
         // Set the core's graphics device to a reference of the base Game's

@@ -103,11 +103,15 @@ public class StateStack
     {
         _isProcessing = true;
         while (_operationQueue.Count > 0) {
-            if (_operationQueue.Dequeue() != null){
-                _operationQueue.Dequeue().Invoke();
+            var operation = _operationQueue.Dequeue();
+            if (operation != null) {
+                operation.Invoke();
             }
         }
-        _isProcessing = false;
+        
+        if (_states.Count == 0) {
+            return;
+        }
 
         // Update from the top of the stack downward until a blocking state (flag == true) is encountered.
         for (int i = _states.Count - 1; i >= 0; i -= 1) {
@@ -116,6 +120,7 @@ public class StateStack
             if (_states[i].IsBlocking)
                 break;
         }
+        _isProcessing = false; // Ensure that the flag is true during the whole update process
     }
 
     public void Draw(GameTime gameTime, SpriteBatch spriteBatch) {
