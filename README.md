@@ -22,8 +22,150 @@ A single state has limited power, and the `StateStack` class is where they are o
 
 Transitions between states are event-driven, safe, and flexible. Inside any state, you can call `RequestChange(newState)` to clear the stack and switch to a completely new state (e.g., from the main menu to the game), or call `RequestPush(menuState)` to overlay a new state on the current one (e.g., opening an inventory), or call `RequestPop()` to close the current state (e.g., closing the menu to return to the game). All transition requests are queued and processed at safe times, avoiding errors that could arise from directly modifying the stack structure within the update loop.
 
-## Example: From Splash Screen to Main Game Loop
-Let's see how it works with a practical example. Assume your game `Game1` inherits from `MonoGameLibrary.Core`. 
+## Example
+Let's look at a concrete example to understand how to use the MonoGameLibrary.States​ module to build a simple application flow. This example will have two screens (InitialStateand SecondState) and demonstrate state transitions and overlay effects. When your game `Game1` inherits from `MonoGameLibrary.Core`, like the condition at the end of [MonoGame.Samples/Tutorials/learn-monogame-2d/src/04-Creating-A-Class-Library](https://github.com/MonoGame/MonoGame.Samples/tree/3.8.4/Tutorials/learn-monogame-2d/src/04-Creating-A-Class-Library). 
+### 1. Setting up the Game Class (Game1.cs)
+Your main game class inherits from `MonoGameLibrary.Core`. It is responsible for initializing the `StateStack` and `InputState`, and delegates the update and draw calls to the stack.
+
+```csharp
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
+using MonoGameLibrary;
+
+namespace SampleProject;
+
+public class Game1 : Core
+{
+    // Declare StateStack and InputState manager
+    private MonoGameLibrary.States.StateStack _stateStack;
+    private MonoGameLibrary.States.InputState _inputState;
+
+    // A public static property for safe access to the state stack from other classes (e.g., States)
+    public static MonoGameLibrary.States.StateStack StateStack { get; private set; }
+
+    public Game1() : base("Dungeon Slime - States Demo", 1280, 720, false)
+    {
+    }
+
+    protected override void Initialize()
+    {
+        // Initialize StateStack and InputState manager
+        _stateStack = new MonoGameLibrary.States.StateStack();
+        _inputState = new MonoGameLibrary.States.InputState();
+        StateStack = _stateStack; // Make it accessible globally
+
+        // Push the initial state (e.g., a splash screen or main menu)
+        _stateStack.Push(new States.InitialState());
+
+        base.Initialize();
+    }
+
+    protected override void Update(GameTime gameTime)
+    {
+        // 1. Update the input state (records current and previous frame)
+        _inputState.Update();
+        
+        // 2. Delegate all game logic updating to the state stack.
+        // The stack will call Update/HandleInput on the active states.
+        _stateStack.Update(gameTime, _inputState);
+        
+        base.Update(gameTime);
+    }
+    protected override void Draw(GameTime gameTime)
+    {
+        // Delegate all rendering to the state stack.
+        // It follows the IsTransparent and IsBlocking rules for layered drawing.
+        _stateStack.Draw(gameTime, Core.SpriteBatch);
+
+        base.Draw(gameTime);
+    }
+}
+
+```
+
+### 2. Defining the Initial State (InitialState.cs)
+The first state loaded. It sets a blue background and waits for player input to push a new state onto the stack.
+
+```csharp
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
+using MonoGameLibrary;
+
+namespace SampleProject.States;
+
+public class InitialState : MonoGameLibrary.States.State {
+    public override void Update(GameTime gameTime) {
+        // Empty update logic in this sample
+    }
+
+    public override void Draw(GameTime gameTime, SpriteBatch spriteBatch) {
+        // Set the screen to CornflowerBlue
+        Core.GraphicsDevice.Clear(Color.CornflowerBlue);
+    }
+
+    public override void HandleInput(GameTime gameTime, MonoGameLibrary.States.InputState inputState) {
+        // When SPACE is pressed, push the SecondState onto the stack (if it's not already on top).
+        if (inputState.IsKeyPressed(Keys.Space)) {
+            if (!MonoGameLibrary.States.StateStackExtensions.IsInState<SecondState>(Game1.StateStack))
+            {
+                this.RequestPush(new SecondState());
+            }
+        }
+        // ESC or Back button exits the game
+        if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape)) {
+            Exit();
+        }
+    }
+}
+
+```
+
+### 3. Defining the Second State (SecondState.cs)
+A state that is pushed on top of the `InitialState`. It is **transparent**, meaning the state below it (`InitialState`) will still be drawn, but will be covered by this state's new clear color. Pressing `ENTER` will pop this state, returning to the initial one.
+
+```csharp
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
+using MonoGameLibrary;
+
+namespace SampleProject.States;
+
+public class SecondState : MonoGameLibrary.States.State {
+    // This state is transparent. The Draw() of the state below (InitialState) will be called first.
+    public override bool IsTransparent => true;
+    public override void Update(GameTime gameTime) {
+        // Empty update logic in this sample
+    }
+    public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
+    {
+        // Overwrites the screen with DarkSlateGray, creating an overlay effect.
+        Core.GraphicsDevice.Clear(Color.DarkSlateGray);
+    }
+    public override void HandleInput(GameTime gameTime, MonoGameLibrary.States.InputState inputState)
+    {
+        // When ENTER is pressed, pop the current state (SecondState) from the stack, returning to InitialState.
+        if (inputState.IsKeyPressed(Keys.Enter))
+        {
+            this.RequestPop();
+        }
+    }
+}
+
+```
+
+### Execution Flow Explanation
+1.  **Startup**: The game runs, `Game1` initializes and pushes `InitialState` onto the state stack. The screen displays `CornflowerBlue`.
+2.  **Pushing a New State**: Pressing the `SPACE` key in `InitialState` triggers `this.RequestPush(new SecondState())`.
+    *   The `StateStack` pushes `SecondState` onto the top of the stack, making it the active state.
+    *   Since `SecondState` has its `IsTransparent` property set to `true`, `StateStack.Draw()` will first draw the underlying `InitialState` (blue), then draw the top `SecondState` (DarkSlateGray). The latter clears the entire screen, so you will see DarkSlateGray.
+3.  **Popping a State**: Pressing the `ENTER` key in `SecondState` triggers `this.RequestPop()`.
+    *   The `StateStack` removes `SecondState` from the stack.
+    *   `InitialState` becomes the top active state again, and the screen reverts to `CornflowerBlue`.
+
+This simple example clearly demonstrates how the state stack manages screens, how event-driven transitions (`RequestPush`/`RequestPop`) enable safe state changes, and how the `IsTransparent` property affects the final rendering outcome. You can easily build complex interface flows like main menus, pause screens, and game levels on top of this foundation.
 
 ## More Than Management, It's Empowerment
 Beyond core state management, this module includes a practical `InputState` class. It encapsulates MonoGame's input while also recording the state of the current and previous frames. This makes implementing edge-detection logic like "key was just pressed" (`WasKeyJustPressed`) extremely easy, as seen in `SplashState.HandleInput`.
