@@ -4,29 +4,45 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace MonoGameLibrary.States;
-public class StateStack
-{
+
+/// <summary>
+/// Manages a stack of game states, handling updates, drawing, and state transitions.
+/// </summary>
+public class StateStack {
     private readonly List<State> _states = new List<State>();
     private bool _isProcessing = false;
     private readonly Queue<Action> _operationQueue = new Queue<Action>();
 
+    /// <summary>
+    /// Gets the current state at the top of the stack.
+    /// </summary>
+    /// <returns>The top-most state, or null if the stack is empty.</returns>
     public State CurrentState { get { return _states.Count > 0 ? _states[_states.Count - 1] : null; } }
 
-    private void SubscribeState(State state)
-    {
+    /// <summary>
+    /// Subscribes to the state's StateChangeRequested event.
+    /// </summary>
+    /// <param name="state">The state to subscribe.</param>
+    private void SubscribeState(State state) {
         state.StateChangeRequested += OnStateChangeRequested;
     }
 
-    private void UnsubscribeState(State state)
-    {
+    /// <summary>
+    /// Unsubscribes from the state's StateChangeRequested event.
+    /// </summary>
+    /// <param name="state">The state to unsubscribe.</param>
+    private void UnsubscribeState(State state) {
         state.StateChangeRequested -= OnStateChangeRequested;
     }
 
-    private void OnStateChangeRequested(object sender, StateChangeEventArgs e)
-    {
+    /// <summary>
+    /// Handles state change requests from a state.
+    /// </summary>
+    /// <param name="sender">The state that raised the event.</param>
+    /// <param name="e">Event arguments containing the requested change.</param>
+    private void OnStateChangeRequested(object sender, StateChangeEventArgs e) {
         // Perform corresponding operations based on the event type (use queues to ensure thread safety)
-        switch (e.ChangeType)
-        {
+        switch (e.ChangeType) {
             case StateChangeType.Push:
                 Push(e.NewState);
                 break;
@@ -38,46 +54,50 @@ public class StateStack
                 break;
         }
     }
-
-    public void Push(State state)
-    {
-        Action operation = delegate()
-        {
-            if (_states.Count > 0)
+    
+    /// <summary>
+    /// Pushes a new state onto the stack.
+    /// </summary>
+    /// <param name="state">The state to push.</param>
+    public void Push(State state) {
+        Action operation = delegate() {
+            if (_states.Count > 0) {
                 _states[_states.Count - 1].Exit();
-
+            }
             SubscribeState(state);
             _states.Add(state);
             state.Enter();
         };
         QueueOrExecute(operation);
     }
-
-    public void Pop()
-    {
-        Action operation = delegate()
-        {
-            if (_states.Count > 0)
-            {
+    
+    /// <summary>
+    /// Pops the current state from the stack.
+    /// </summary>
+    public void Pop() {
+        Action operation = delegate() {
+            if (_states.Count > 0) {
                 var topState = _states[_states.Count - 1];
                 UnsubscribeState(topState);
                 topState.Exit();
                 _states.RemoveAt(_states.Count - 1);
             }
 
-            if (_states.Count > 0)
+            if (_states.Count > 0) {
                 _states[_states.Count - 1].Enter();
+            }
         };
         QueueOrExecute(operation);
     }
-
-    public void Change(State state)
-    {
-        Action operation = delegate()
-        {
+    
+    /// <summary>
+    /// Replaces the entire stack with a single new state.
+    /// </summary>
+    /// <param name="state">The state to set as the new stack content.</param>
+    public void Change(State state) {
+        Action operation = delegate() {
             // Remove all states
-            while (_states.Count > 0)
-            {
+            while (_states.Count > 0) {
                 var topState = _states[_states.Count - 1];
                 UnsubscribeState(topState);
                 topState.Exit();
@@ -90,15 +110,25 @@ public class StateStack
         };
         QueueOrExecute(operation);
     }
-
-    private void QueueOrExecute(Action operation)
-    {
-        if (_isProcessing)
+    
+    /// <summary>
+    /// Queues an operation for later execution if currently processing updates; otherwise executes immediately.
+    /// </summary>
+    /// <param name="operation">The operation to queue or execute.</param>
+    private void QueueOrExecute(Action operation) {
+        if (_isProcessing) {
             _operationQueue.Enqueue(operation);
-        else
+        }
+        else {
             operation();
+        }
     }
-
+    
+    /// <summary>
+    /// Updates all active states from top to bottom, respecting blocking flags.
+    /// </summary>
+    /// <param name="gameTime">Provides a snapshot of timing values.</param>
+    /// <param name="inputState">The current input state.</param>
     public void Update(GameTime gameTime, InputState inputState)
     {
         _isProcessing = true;
@@ -117,12 +147,18 @@ public class StateStack
         for (int i = _states.Count - 1; i >= 0; i -= 1) {
             _states[i].HandleInput(gameTime, inputState);
             _states[i].Update(gameTime);
-            if (_states[i].IsBlocking)
+            if (_states[i].IsBlocking) {
                 break;
+            }
         }
         _isProcessing = false; // Ensure that the flag is true during the whole update process
     }
-
+    
+    /// <summary>
+    /// Draws all states from bottom to top, stopping when a non-transparent state is encountered.
+    /// </summary>
+    /// <param name="gameTime">Provides a snapshot of timing values.</param>
+    /// <param name="spriteBatch">The SpriteBatch instance used for drawing.</param>
     public void Draw(GameTime gameTime, SpriteBatch spriteBatch) {
         // Draw current state. Start drawing from the bottom of the stack upwards. Stop when encountering a non-transparent state (flag == false), which ensures that the non-transparent state (such as a full-screen menu) will cover all the content below it.
         bool _foundDrawOpaque = false;
